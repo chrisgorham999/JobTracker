@@ -72,11 +72,8 @@ async function dismissFollowUp(followupId) {
     }
 }
 
-// Load follow ups for admin
+// Load follow ups for all users on Home tab
 async function loadFollowUps() {
-    if (!isAdmin()) return;
-
-    const followupsSection = document.getElementById('followups-section');
     const followupsList = document.getElementById('followups-list');
     const followupsCount = document.getElementById('followups-count');
 
@@ -91,12 +88,10 @@ async function loadFollowUps() {
         followupsCount.textContent = followups.length;
 
         if (followups.length === 0) {
-            followupsSection.classList.add('hidden');
-            followupsList.innerHTML = '';
+            followupsList.innerHTML = '<p class="empty-text">No flagged items.</p>';
             return;
         }
 
-        followupsSection.classList.remove('hidden');
         followupsList.innerHTML = '';
 
         for (const followup of followups) {
@@ -108,6 +103,10 @@ async function loadFollowUps() {
                 followup.flaggedAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) :
                 'Unknown';
 
+            // Only show dismiss button for admins
+            const dismissButton = isAdmin() ?
+                `<button class="btn btn-small btn-dismiss" data-id="${followup.id}">Dismiss</button>` : '';
+
             item.innerHTML = `
                 <div class="followup-content">
                     <span class="followup-category">${escapeHtml(categoryLabel)}</span>
@@ -116,7 +115,7 @@ async function loadFollowUps() {
                 </div>
                 <div class="followup-actions">
                     <button class="btn btn-small btn-view" data-category="${followup.category}" data-id="${followup.itemId}">View</button>
-                    <button class="btn btn-small btn-dismiss" data-id="${followup.id}">Dismiss</button>
+                    ${dismissButton}
                 </div>
             `;
 
@@ -126,10 +125,13 @@ async function loadFollowUps() {
                 if (tabBtn) tabBtn.click();
             });
 
-            // Dismiss button
-            item.querySelector('.btn-dismiss').addEventListener('click', () => {
-                dismissFollowUp(followup.id);
-            });
+            // Dismiss button (only for admins)
+            const dismissBtn = item.querySelector('.btn-dismiss');
+            if (dismissBtn) {
+                dismissBtn.addEventListener('click', () => {
+                    dismissFollowUp(followup.id);
+                });
+            }
 
             followupsList.appendChild(item);
         }
@@ -541,39 +543,13 @@ async function loadData(category) {
         }
 
         renderList(category, items);
-
-        // Update county filter for permits
-        if (category === 'permits') {
-            updateCountyFilter(items);
-        }
     } catch (error) {
         listElement.innerHTML = `<p class="error-text">Error loading data: ${error.message}</p>`;
     }
 }
 
-function updateCountyFilter(items) {
-    const select = document.getElementById('permit-sort');
-    const counties = [...new Set(items.map(item => item.county).filter(Boolean))].sort();
-
-    // Preserve current selection
-    const currentValue = select.value;
-
-    select.innerHTML = '<option value="all">All Counties</option>';
-    counties.forEach(county => {
-        const option = document.createElement('option');
-        option.value = county;
-        option.textContent = county;
-        select.appendChild(option);
-    });
-
-    // Restore selection if still valid
-    if (counties.includes(currentValue) || currentValue === 'all') {
-        select.value = currentValue;
-    }
-}
-
-// County filter event
-document.getElementById('permit-sort').addEventListener('change', () => {
+// Status filter event for permits
+document.getElementById('permit-status-filter').addEventListener('change', () => {
     loadData('permits');
 });
 
@@ -714,11 +690,11 @@ function createPermitCard(item, category) {
 function renderList(category, items) {
     const listElement = document.getElementById(`${category}-list`);
 
-    // Apply county filter for permits
+    // Apply status filter for permits
     if (category === 'permits') {
-        const filterValue = document.getElementById('permit-sort').value;
+        const filterValue = document.getElementById('permit-status-filter').value;
         if (filterValue !== 'all') {
-            items = items.filter(item => item.county === filterValue);
+            items = items.filter(item => item.status === filterValue);
         }
     }
 

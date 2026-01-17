@@ -75,7 +75,14 @@
 
         <!-- Navigation Tabs -->
         <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="permits" aria-label="Permits">
+            <button class="tab-btn active" data-tab="home" aria-label="Home">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span>Home</span>
+            </button>
+            <button class="tab-btn" data-tab="permits" aria-label="Permits">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
@@ -111,19 +118,19 @@
             </button>
         </nav>
 
-        <!-- Follow Ups Section (Admin Only) -->
-        <section id="followups-section" class="followups-section admin-only hidden">
-            <div class="followups-header">
-                <h2>Follow Ups Required</h2>
-                <span id="followups-count" class="followups-badge">0</span>
-            </div>
-            <div id="followups-list" class="followups-list"></div>
-        </section>
-
         <!-- Tab Content -->
         <main class="tab-content">
+            <!-- Home Section -->
+            <section id="home-tab" class="tab-panel active">
+                <div class="panel-header">
+                    <h2>Flagged Items</h2>
+                    <span id="followups-count" class="followups-badge">0</span>
+                </div>
+                <div id="followups-list" class="followups-list"></div>
+            </section>
+
             <!-- Permits Section -->
-            <section id="permits-tab" class="tab-panel active">
+            <section id="permits-tab" class="tab-panel hidden">
                 <div class="panel-header">
                     <h2>Permit Status</h2>
                     <button class="btn btn-add admin-only" id="add-permit-btn">+ Add</button>
