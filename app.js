@@ -306,10 +306,17 @@ document.getElementById('add-vehicle-btn').addEventListener('click', () => openM
 document.getElementById('add-bill-btn').addEventListener('click', () => openModal('bills'));
 document.getElementById('add-activity-btn').addEventListener('click', () => openModal('activity'));
 
+// Helper function to add timeout to promises
+function withTimeout(promise, ms) {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), ms)
+    );
+    return Promise.race([promise, timeout]);
+}
+
 // Form Submit
 document.getElementById('modal-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    showLoading();
 
     const form = e.target;
     const category = form.dataset.category;
@@ -327,20 +334,23 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
         data[field.name] = input.value;
     });
 
+    // Close modal first for better UX
+    closeModal();
+    showLoading();
+
     try {
         if (editId) {
             data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
             delete data.createdAt;
-            await db.collection(category).doc(editId).update(data);
+            await withTimeout(db.collection(category).doc(editId).update(data), 15000);
         } else {
-            await db.collection(category).add(data);
+            await withTimeout(db.collection(category).add(data), 15000);
         }
-        closeModal();
-        loadData(category);
+        await withTimeout(loadData(category), 10000);
     } catch (error) {
         alert('Error saving data: ' + error.message);
+        console.error('Save error:', error);
     }
-
     hideLoading();
 });
 
