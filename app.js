@@ -603,6 +603,24 @@ async function loadData(category) {
                 };
                 return getLastName(a.customerName).localeCompare(getLastName(b.customerName));
             });
+        } else if (category === 'vehicles') {
+            // Sort vehicles based on user selection
+            const sortBy = document.getElementById('vehicle-sort').value;
+            if (sortBy === 'renewalDate') {
+                // Sort by registration renewal date (ascending - soonest first)
+                items.sort((a, b) => {
+                    const dateA = a.registrationRenewalDate ? new Date(a.registrationRenewalDate + 'T00:00:00') : new Date('9999-12-31');
+                    const dateB = b.registrationRenewalDate ? new Date(b.registrationRenewalDate + 'T00:00:00') : new Date('9999-12-31');
+                    return dateA - dateB;
+                });
+            } else if (sortBy === 'year') {
+                // Sort by year (descending - newest first)
+                items.sort((a, b) => {
+                    const yearA = parseInt(a.year) || 0;
+                    const yearB = parseInt(b.year) || 0;
+                    return yearB - yearA;
+                });
+            }
         } else {
             // Sort other categories by createdAt descending
             items.sort((a, b) => {
@@ -621,6 +639,11 @@ async function loadData(category) {
 // Status filter event for permits
 document.getElementById('permit-status-filter').addEventListener('change', () => {
     loadData('permits');
+});
+
+// Sort event for vehicles
+document.getElementById('vehicle-sort').addEventListener('change', () => {
+    loadData('vehicles');
 });
 
 // Track collapsed state for county groups, activity dates, and bill status
