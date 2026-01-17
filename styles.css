@@ -263,28 +263,44 @@ body {
     position: sticky;
     top: 58px;
     z-index: 99;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 .tab-btn {
     flex: 1;
-    min-width: fit-content;
-    padding: 0.875rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0.5rem;
+    min-height: 60px;
     background: none;
     border: none;
-    font-size: 0.875rem;
+    font-size: 0.625rem;
     font-weight: 500;
     color: var(--text-muted);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     transition: all 0.2s;
-    white-space: nowrap;
+}
+
+.tab-btn svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.tab-btn span {
+    display: block;
 }
 
 .tab-btn.active {
     color: var(--primary-color);
     border-bottom-color: var(--primary-color);
+}
+
+.tab-btn:active {
+    background-color: rgba(250, 204, 21, 0.1);
 }
 
 /* Tab Content */
@@ -600,8 +616,16 @@ body {
     }
 
     .tab-btn {
+        flex-direction: row;
+        gap: 0.5rem;
         padding: 1rem 1.5rem;
-        font-size: 1rem;
+        font-size: 0.875rem;
+        min-height: auto;
+    }
+
+    .tab-btn svg {
+        width: 20px;
+        height: 20px;
     }
 
     .item-card {
