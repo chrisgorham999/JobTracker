@@ -941,7 +941,7 @@ body {
     background-color: var(--card-bg);
     width: 100%;
     max-width: 500px;
-    max-height: 90vh;
+    max-height: 85vh;
     border-radius: 1rem 1rem 0 0;
     overflow: hidden;
     display: flex;
@@ -1007,18 +1007,26 @@ body {
 #modal-form {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 1rem;
+    padding-bottom: 1.5rem;
 }
 
 #modal-fields {
     margin-bottom: 1rem;
 }
 
+#modal-fields .form-group:last-child {
+    margin-bottom: 0;
+}
+
 .modal-actions {
     display: flex;
     gap: 0.75rem;
-    padding-top: 1rem;
+    padding: 1rem;
     border-top: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    flex-shrink: 0;
 }
 
 .modal-actions .btn {
