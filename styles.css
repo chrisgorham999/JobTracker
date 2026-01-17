@@ -24,6 +24,9 @@
 
 html {
     font-size: 16px;
+    /* Prevent layout shifts when keyboard opens on mobile */
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
@@ -31,8 +34,10 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.5;
-    min-height: 100vh;
+    height: 100%;
+    overflow-y: auto;
     -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Container */
@@ -474,6 +479,14 @@ body {
     text-decoration: underline;
 }
 
+.card-updated {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border-color);
+}
+
 .card-actions {
     display: flex;
     gap: 0.5rem;
@@ -484,6 +497,40 @@ body {
 
 .card-actions .btn {
     flex: 1;
+}
+
+/* Invite Button */
+.invite-container {
+    padding: 1rem;
+    padding-bottom: 2rem;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+}
+
+.btn-invite {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    width: 100%;
+    max-width: 300px;
+}
+
+.btn-invite:hover,
+.btn-invite:active {
+    background-color: var(--primary-color);
+    color: #000000;
+}
+
+.btn-invite svg {
+    width: 20px;
+    height: 20px;
 }
 
 /* Modal */

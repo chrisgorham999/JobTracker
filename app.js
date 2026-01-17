@@ -284,6 +284,10 @@ function openModal(category, editData = null) {
 }
 
 function closeModal() {
+    // Blur any focused input to dismiss keyboard
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
     modal.classList.add('hidden');
     document.getElementById('modal-form').reset();
 }
@@ -390,6 +394,18 @@ async function loadData(category) {
             items.push({ id: doc.id, ...doc.data() });
         });
 
+        // Sort permits alphabetically by customer last name
+        if (category === 'permits') {
+            items.sort((a, b) => {
+                const getLastName = (name) => {
+                    if (!name) return '';
+                    const parts = name.trim().split(/\s+/);
+                    return parts[parts.length - 1].toLowerCase();
+                };
+                return getLastName(a.customerName).localeCompare(getLastName(b.customerName));
+            });
+        }
+
         renderList(category, items);
 
         // Update county filter for permits
@@ -466,6 +482,7 @@ function renderList(category, items) {
                         <p><strong>Submitted:</strong> ${escapeHtml(item.dateSubmitted)}</p>
                         ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
                     </div>
+                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
                 `;
                 break;
 
@@ -482,6 +499,7 @@ function renderList(category, items) {
                         ${item.lastService ? `<p><strong>Last Service:</strong> ${escapeHtml(item.lastService)}</p>` : ''}
                         ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
                     </div>
+                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
                 `;
                 break;
 
@@ -498,6 +516,7 @@ function renderList(category, items) {
                         <p><strong>Category:</strong> ${escapeHtml(item.category)}</p>
                         ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
                     </div>
+                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
                 `;
                 break;
 
@@ -514,6 +533,7 @@ function renderList(category, items) {
                         ${item.equipment ? `<p><strong>Equipment:</strong> ${escapeHtml(item.equipment)}</p>` : ''}
                         ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
                     </div>
+                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
                 `;
                 break;
         }
@@ -555,3 +575,61 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Helper function to format Firestore timestamp
+function formatDate(timestamp) {
+    if (!timestamp) return 'Never';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+// Dismiss keyboard when tapping outside input fields
+document.addEventListener('click', (e) => {
+    const activeElement = document.activeElement;
+    const isInput = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'SELECT'
+    );
+
+    if (isInput) {
+        const clickedOnInput = e.target.tagName === 'INPUT' ||
+            e.target.tagName === 'TEXTAREA' ||
+            e.target.tagName === 'SELECT' ||
+            e.target.tagName === 'LABEL';
+
+        if (!clickedOnInput) {
+            activeElement.blur();
+        }
+    }
+});
+
+// Invite button - Share functionality
+document.getElementById('invite-btn').addEventListener('click', async () => {
+    const shareData = {
+        title: 'Job Tracker',
+        text: 'Check out Job Tracker - a simple app to track permits, vehicles, bills, and daily activity!',
+        url: 'https://chrisgorham999.github.io/JobTracker'
+    };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else {
+            // Fallback for browsers that don't support Web Share API
+            await navigator.clipboard.writeText(shareData.url);
+            alert('Link copied to clipboard! Share it with others.');
+        }
+    } catch (error) {
+        // User cancelled or error occurred
+        if (error.name !== 'AbortError') {
+            console.error('Error sharing:', error);
+        }
+    }
+});
