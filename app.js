@@ -386,7 +386,6 @@ async function loadData(category) {
     try {
         const snapshot = await db.collection(category)
             .where('userId', '==', currentUser.uid)
-            .orderBy('createdAt', 'desc')
             .get();
 
         const items = [];
@@ -394,8 +393,9 @@ async function loadData(category) {
             items.push({ id: doc.id, ...doc.data() });
         });
 
-        // Sort permits alphabetically by customer last name
+        // Sort items based on category
         if (category === 'permits') {
+            // Sort permits alphabetically by customer last name
             items.sort((a, b) => {
                 const getLastName = (name) => {
                     if (!name) return '';
@@ -403,6 +403,13 @@ async function loadData(category) {
                     return parts[parts.length - 1].toLowerCase();
                 };
                 return getLastName(a.customerName).localeCompare(getLastName(b.customerName));
+            });
+        } else {
+            // Sort other categories by createdAt descending
+            items.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+                return dateB - dateA;
             });
         }
 
