@@ -238,6 +238,14 @@ document.getElementById('show-login-from-reset').addEventListener('click', (e) =
 // Login
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Check reCAPTCHA
+    const recaptchaResponse = grecaptcha.getResponse(0);
+    if (!recaptchaResponse) {
+        showMessage('Please complete the reCAPTCHA', true);
+        return;
+    }
+
     showLoading();
 
     const email = document.getElementById('login-email').value;
@@ -247,6 +255,7 @@ loginForm.addEventListener('submit', async (e) => {
         await auth.signInWithEmailAndPassword(email, password);
     } catch (error) {
         showMessage(error.message, true);
+        grecaptcha.reset(0);
     }
 
     hideLoading();
@@ -255,6 +264,14 @@ loginForm.addEventListener('submit', async (e) => {
 // Sign Up
 signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Check reCAPTCHA
+    const recaptchaResponse = grecaptcha.getResponse(1);
+    if (!recaptchaResponse) {
+        showMessage('Please complete the reCAPTCHA', true);
+        return;
+    }
+
     showLoading();
 
     const email = document.getElementById('signup-email').value;
@@ -263,6 +280,7 @@ signupForm.addEventListener('submit', async (e) => {
 
     if (password !== confirm) {
         showMessage('Passwords do not match', true);
+        grecaptcha.reset(1);
         hideLoading();
         return;
     }
@@ -272,6 +290,7 @@ signupForm.addEventListener('submit', async (e) => {
         showMessage('Account created successfully!');
     } catch (error) {
         showMessage(error.message, true);
+        grecaptcha.reset(1);
     }
 
     hideLoading();
