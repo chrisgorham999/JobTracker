@@ -460,6 +460,53 @@ document.getElementById('permit-sort').addEventListener('change', () => {
     loadData('permits');
 });
 
+// Track collapsed state for county groups
+const collapsedCounties = new Set();
+
+// Helper function to create a permit card
+function createPermitCard(item, category) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+
+    card.innerHTML = `
+        <div class="card-header">
+            <span class="card-title">${escapeHtml(item.permitNumber)}</span>
+            <span class="status-badge status-${item.status?.toLowerCase().replace(' ', '-')}">${escapeHtml(item.status)}</span>
+        </div>
+        <div class="card-details">
+            <p><strong>Customer:</strong> ${escapeHtml(item.customerName)}</p>
+            <p><strong>Phone:</strong> <a href="tel:${escapeHtml(item.customerPhone)}">${escapeHtml(item.customerPhone)}</a></p>
+            <p><strong>Address:</strong> ${escapeHtml(item.address)}</p>
+            <p><strong>Submitted:</strong> ${escapeHtml(item.dateSubmitted)}</p>
+            ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
+        </div>
+        <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
+        <div class="card-actions">
+            <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
+            <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
+        </div>
+    `;
+
+    // Edit button
+    card.querySelector('.btn-edit').addEventListener('click', () => {
+        openModal(category, item);
+    });
+
+    // Delete button
+    card.querySelector('.btn-danger').addEventListener('click', () => {
+        showDeleteConfirm(async () => {
+            try {
+                await db.collection(category).doc(item.id).delete();
+                loadData(category);
+            } catch (error) {
+                alert('Error deleting: ' + error.message);
+            }
+        });
+    });
+
+    return card;
+}
+
 function renderList(category, items) {
     const listElement = document.getElementById(`${category}-list`);
 
@@ -478,6 +525,64 @@ function renderList(category, items) {
 
     listElement.innerHTML = '';
 
+    // For permits, group by county
+    if (category === 'permits') {
+        // Group items by county
+        const groupedByCounty = {};
+        items.forEach(item => {
+            const county = item.county || 'Unknown';
+            if (!groupedByCounty[county]) {
+                groupedByCounty[county] = [];
+            }
+            groupedByCounty[county].push(item);
+        });
+
+        // Sort counties alphabetically
+        const sortedCounties = Object.keys(groupedByCounty).sort();
+
+        sortedCounties.forEach(county => {
+            const countyItems = groupedByCounty[county];
+            const isCollapsed = collapsedCounties.has(county);
+
+            // Create county group container
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'county-group';
+
+            // Create collapsible header
+            const header = document.createElement('div');
+            header.className = `county-header ${isCollapsed ? 'collapsed' : ''}`;
+            header.innerHTML = `
+                <span class="county-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                <span class="county-name">${escapeHtml(county)}</span>
+                <span class="county-count">(${countyItems.length})</span>
+            `;
+            header.addEventListener('click', () => {
+                if (collapsedCounties.has(county)) {
+                    collapsedCounties.delete(county);
+                } else {
+                    collapsedCounties.add(county);
+                }
+                renderList(category, items);
+            });
+            groupDiv.appendChild(header);
+
+            // Create content container
+            const content = document.createElement('div');
+            content.className = `county-content ${isCollapsed ? 'collapsed' : ''}`;
+
+            // Add permit cards for this county
+            countyItems.forEach(item => {
+                const card = createPermitCard(item, category);
+                content.appendChild(card);
+            });
+
+            groupDiv.appendChild(content);
+            listElement.appendChild(groupDiv);
+        });
+        return;
+    }
+
+    // For non-permits, render normally
     items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'item-card';
@@ -485,23 +590,6 @@ function renderList(category, items) {
         let cardContent = '';
 
         switch (category) {
-            case 'permits':
-                cardContent = `
-                    <div class="card-header">
-                        <span class="card-title">${escapeHtml(item.permitNumber)}</span>
-                        <span class="status-badge status-${item.status?.toLowerCase().replace(' ', '-')}">${escapeHtml(item.status)}</span>
-                    </div>
-                    <div class="card-details">
-                        <p><strong>Customer:</strong> ${escapeHtml(item.customerName)}</p>
-                        <p><strong>Phone:</strong> <a href="tel:${escapeHtml(item.customerPhone)}">${escapeHtml(item.customerPhone)}</a></p>
-                        <p><strong>County:</strong> ${escapeHtml(item.county)}</p>
-                        <p><strong>Address:</strong> ${escapeHtml(item.address)}</p>
-                        <p><strong>Submitted:</strong> ${escapeHtml(item.dateSubmitted)}</p>
-                        ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
-                    </div>
-                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
-                `;
-                break;
 
             case 'vehicles':
                 cardContent = `

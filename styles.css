@@ -370,6 +370,73 @@ body {
     gap: 1rem;
 }
 
+/* County Groups (Collapsible) */
+.county-group {
+    background-color: var(--card-bg);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.county-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    cursor: pointer;
+    background-color: #1f1f1f;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.county-header:hover,
+.county-header:active {
+    background-color: #2a2a2a;
+}
+
+.county-header.collapsed {
+    border-bottom: none;
+}
+
+.county-toggle {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    width: 1rem;
+    text-align: center;
+}
+
+.county-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--primary-color);
+    flex: 1;
+}
+
+.county-count {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    background-color: var(--border-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+}
+
+.county-content {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.county-content.collapsed {
+    display: none;
+}
+
+.county-content .item-card {
+    margin: 0;
+}
+
 .empty-text,
 .loading-text,
 .error-text {
