@@ -158,26 +158,21 @@ const formConfigs = {
     vehicles: {
         title: 'Vehicle',
         fields: [
-            { name: 'vehicleName', label: 'Vehicle Name/ID', type: 'text', required: true },
-            { name: 'make', label: 'Make', type: 'text', required: true },
-            { name: 'model', label: 'Model', type: 'text', required: true },
             { name: 'year', label: 'Year', type: 'number', required: true },
-            { name: 'licensePlate', label: 'License Plate', type: 'text', required: true },
-            { name: 'mileage', label: 'Current Mileage', type: 'number', required: false },
-            { name: 'lastService', label: 'Last Service Date', type: 'date', required: false },
-            { name: 'status', label: 'Status', type: 'select', options: ['Active', 'In Service', 'Out of Service'], required: true },
-            { name: 'notes', label: 'Notes', type: 'textarea', required: false }
+            { name: 'makeModel', label: 'Make Model', type: 'text', required: true },
+            { name: 'vin', label: 'VIN', type: 'text', required: true },
+            { name: 'registrationRenewalDate', label: 'Registration Renewal Date', type: 'date', required: true }
         ]
     },
     bills: {
         title: 'Bill',
         fields: [
-            { name: 'vendor', label: 'Vendor/Company', type: 'text', required: true },
-            { name: 'description', label: 'Description', type: 'text', required: true },
+            { name: 'vendor', label: 'Vendor', type: 'text', required: true },
+            { name: 'invoiceNumber', label: 'Invoice #', type: 'text', required: true },
             { name: 'amount', label: 'Amount ($)', type: 'number', step: '0.01', required: true },
-            { name: 'dueDate', label: 'Due Date', type: 'date', required: true },
-            { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Paid', 'Overdue'], required: true },
-            { name: 'category', label: 'Category', type: 'select', options: ['Utilities', 'Insurance', 'Supplies', 'Equipment', 'Services', 'Other'], required: true },
+            { name: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['Cash', 'Check', 'Credit Card'], required: true },
+            { name: 'checkNumber', label: 'Check Number', type: 'text', required: false, showIf: { field: 'paymentMethod', value: 'Check' } },
+            { name: 'status', label: 'Status', type: 'select', options: ['Unpaid', 'Paid'], required: true },
             { name: 'notes', label: 'Notes', type: 'textarea', required: false }
         ]
     },
@@ -311,7 +306,7 @@ auth.onAuthStateChanged((user) => {
         authContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
         updateAdminUI();
-        loadFollowUps();
+        autoFlagVehicleRenewals().then(() => loadFollowUps());
         loadAllData();
     } else {
         currentUser = null;
@@ -357,9 +352,19 @@ function openModal(category, editData = null) {
     modalTitle.textContent = editData ? `Edit ${config.title}` : `Add ${config.title}`;
     modalFields.innerHTML = '';
 
+    const conditionalFields = [];
+
     config.fields.forEach(field => {
         const div = document.createElement('div');
         div.className = 'form-group';
+
+        // Handle conditional visibility
+        if (field.showIf) {
+            div.dataset.showIf = field.showIf.field;
+            div.dataset.showIfValue = field.showIf.value;
+            div.classList.add('conditional-field', 'hidden');
+            conditionalFields.push(div);
+        }
 
         const label = document.createElement('label');
         label.textContent = field.label;
@@ -386,7 +391,7 @@ function openModal(category, editData = null) {
 
         input.id = `field-${field.name}`;
         input.name = field.name;
-        input.required = field.required;
+        input.required = field.showIf ? false : field.required; // Conditional fields not required initially
 
         if (editData && editData[field.name]) {
             input.value = editData[field.name];
@@ -395,6 +400,32 @@ function openModal(category, editData = null) {
         div.appendChild(input);
         modalFields.appendChild(div);
     });
+
+    // Set up conditional field visibility
+    function updateConditionalFields() {
+        conditionalFields.forEach(div => {
+            const triggerField = document.getElementById(`field-${div.dataset.showIf}`);
+            if (triggerField && triggerField.value === div.dataset.showIfValue) {
+                div.classList.remove('hidden');
+            } else {
+                div.classList.add('hidden');
+                // Clear the value when hidden
+                const input = div.querySelector('input, select, textarea');
+                if (input) input.value = '';
+            }
+        });
+    }
+
+    // Add change listeners to trigger fields
+    conditionalFields.forEach(div => {
+        const triggerField = document.getElementById(`field-${div.dataset.showIf}`);
+        if (triggerField) {
+            triggerField.addEventListener('change', updateConditionalFields);
+        }
+    });
+
+    // Initial check for edit mode
+    updateConditionalFields();
 
     // Store category and edit data on form
     modalForm.dataset.category = category;
@@ -588,9 +619,10 @@ document.getElementById('permit-status-filter').addEventListener('change', () =>
     loadData('permits');
 });
 
-// Track collapsed state for county groups and activity dates
+// Track collapsed state for county groups, activity dates, and bill status
 const collapsedCounties = new Set();
 const collapsedDates = new Set();
+const collapsedBillStatus = new Set();
 
 // Helper function to create a task line item
 function createTaskItem(item, category) {
@@ -861,48 +893,104 @@ function renderList(category, items) {
         return;
     }
 
-    // For other categories (vehicles, bills), render normally
+    // For bills, group by Unpaid/Paid status with collapsible sections
+    if (category === 'bills') {
+        const unpaidBills = items.filter(item => item.status === 'Unpaid');
+        const paidBills = items.filter(item => item.status === 'Paid');
+
+        // Render Unpaid Bills section
+        const unpaidCollapsed = collapsedBillStatus.has('Unpaid');
+        const unpaidGroup = document.createElement('div');
+        unpaidGroup.className = 'bill-status-group';
+
+        const unpaidHeader = document.createElement('div');
+        unpaidHeader.className = `bill-status-header ${unpaidCollapsed ? 'collapsed' : ''}`;
+        unpaidHeader.innerHTML = `
+            <span class="status-toggle">${unpaidCollapsed ? '▶' : '▼'}</span>
+            <span class="status-name">Unpaid Bills</span>
+            <span class="status-count">(${unpaidBills.length})</span>
+        `;
+        unpaidHeader.addEventListener('click', () => {
+            if (collapsedBillStatus.has('Unpaid')) {
+                collapsedBillStatus.delete('Unpaid');
+            } else {
+                collapsedBillStatus.add('Unpaid');
+            }
+            renderList(category, items);
+        });
+        unpaidGroup.appendChild(unpaidHeader);
+
+        const unpaidContent = document.createElement('div');
+        unpaidContent.className = `bill-status-content ${unpaidCollapsed ? 'collapsed' : ''}`;
+        if (unpaidBills.length === 0) {
+            unpaidContent.innerHTML = '<p class="empty-text">No unpaid bills.</p>';
+        } else {
+            unpaidBills.forEach(item => {
+                unpaidContent.appendChild(createBillCard(item, category));
+            });
+        }
+        unpaidGroup.appendChild(unpaidContent);
+        listElement.appendChild(unpaidGroup);
+
+        // Render Paid Bills section
+        const paidCollapsed = collapsedBillStatus.has('Paid');
+        const paidGroup = document.createElement('div');
+        paidGroup.className = 'bill-status-group';
+
+        const paidHeader = document.createElement('div');
+        paidHeader.className = `bill-status-header ${paidCollapsed ? 'collapsed' : ''}`;
+        paidHeader.innerHTML = `
+            <span class="status-toggle">${paidCollapsed ? '▶' : '▼'}</span>
+            <span class="status-name">Paid Bills</span>
+            <span class="status-count">(${paidBills.length})</span>
+        `;
+        paidHeader.addEventListener('click', () => {
+            if (collapsedBillStatus.has('Paid')) {
+                collapsedBillStatus.delete('Paid');
+            } else {
+                collapsedBillStatus.add('Paid');
+            }
+            renderList(category, items);
+        });
+        paidGroup.appendChild(paidHeader);
+
+        const paidContent = document.createElement('div');
+        paidContent.className = `bill-status-content ${paidCollapsed ? 'collapsed' : ''}`;
+        if (paidBills.length === 0) {
+            paidContent.innerHTML = '<p class="empty-text">No paid bills.</p>';
+        } else {
+            paidBills.forEach(item => {
+                paidContent.appendChild(createBillCard(item, category));
+            });
+        }
+        paidGroup.appendChild(paidContent);
+        listElement.appendChild(paidGroup);
+
+        return;
+    }
+
+    // For vehicles, render normally
     items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'item-card';
 
         let cardContent = '';
 
-        switch (category) {
-            case 'vehicles':
-                cardContent = `
-                    <div class="card-header">
-                        <span class="card-title">${escapeHtml(item.vehicleName)}</span>
-                        <span class="status-badge status-${item.status?.toLowerCase().replace(' ', '-')}">${escapeHtml(item.status)}</span>
-                    </div>
-                    <div class="card-details">
-                        <p><strong>Vehicle:</strong> ${escapeHtml(item.year)} ${escapeHtml(item.make)} ${escapeHtml(item.model)}</p>
-                        <p><strong>License:</strong> ${escapeHtml(item.licensePlate)}</p>
-                        ${item.mileage ? `<p><strong>Mileage:</strong> ${escapeHtml(item.mileage)}</p>` : ''}
-                        ${item.lastService ? `<p><strong>Last Service:</strong> ${escapeHtml(item.lastService)}</p>` : ''}
-                        ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
-                    </div>
-                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
-                `;
-                break;
+        // Check if registration is within 30 days
+        const isRenewalSoon = isRegistrationWithin30Days(item.registrationRenewalDate);
+        const renewalWarning = isRenewalSoon ? '<span class="renewal-warning">Renewal Due Soon!</span>' : '';
 
-            case 'bills':
-                cardContent = `
-                    <div class="card-header">
-                        <span class="card-title">${escapeHtml(item.vendor)}</span>
-                        <span class="status-badge status-${item.status?.toLowerCase()}">${escapeHtml(item.status)}</span>
-                    </div>
-                    <div class="card-details">
-                        <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
-                        <p><strong>Amount:</strong> $${parseFloat(item.amount).toFixed(2)}</p>
-                        <p><strong>Due Date:</strong> ${escapeHtml(item.dueDate)}</p>
-                        <p><strong>Category:</strong> ${escapeHtml(item.category)}</p>
-                        ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
-                    </div>
-                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
-                `;
-                break;
-        }
+        cardContent = `
+            <div class="card-header">
+                <span class="card-title">${escapeHtml(item.year)} ${escapeHtml(item.makeModel)}</span>
+                ${renewalWarning}
+            </div>
+            <div class="card-details">
+                <p><strong>VIN:</strong> ${escapeHtml(item.vin)}</p>
+                <p><strong>Registration Renewal:</strong> ${escapeHtml(item.registrationRenewalDate)}</p>
+            </div>
+            <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
+        `;
 
         if (isAdmin()) {
             cardContent += `
@@ -948,18 +1036,134 @@ function renderList(category, items) {
         } else {
             // Flag button for non-admin users
             card.querySelector('.btn-flag').addEventListener('click', () => {
-                let title = '';
-                if (category === 'vehicles') {
-                    title = `${item.vehicleName} - ${item.year} ${item.make} ${item.model}`;
-                } else if (category === 'bills') {
-                    title = `${item.vendor} - $${parseFloat(item.amount).toFixed(2)}`;
-                }
+                const title = `${item.year} ${item.makeModel}`;
                 flagForFollowUp(category, item.id, title);
             });
         }
 
         listElement.appendChild(card);
     });
+}
+
+// Helper function to create a bill card
+function createBillCard(item, category) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+
+    const checkNumberLine = item.paymentMethod === 'Check' && item.checkNumber
+        ? `<p><strong>Check #:</strong> ${escapeHtml(item.checkNumber)}</p>`
+        : '';
+
+    let cardContent = `
+        <div class="card-header">
+            <span class="card-title">${escapeHtml(item.vendor)}</span>
+            <span class="status-badge status-${item.status?.toLowerCase()}">${escapeHtml(item.status)}</span>
+        </div>
+        <div class="card-details">
+            <p><strong>Invoice #:</strong> ${escapeHtml(item.invoiceNumber)}</p>
+            <p><strong>Amount:</strong> $${parseFloat(item.amount || 0).toFixed(2)}</p>
+            <p><strong>Payment Method:</strong> ${escapeHtml(item.paymentMethod)}</p>
+            ${checkNumberLine}
+            ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
+        </div>
+        <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
+    `;
+
+    if (isAdmin()) {
+        cardContent += `
+            <div class="card-actions">
+                <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
+                <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
+            </div>
+        `;
+    } else {
+        cardContent += `
+            <div class="card-actions">
+                <button class="btn btn-small btn-flag" data-id="${item.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" y1="22" x2="4" y2="15"></line>
+                    </svg>
+                    Flag for Follow Up
+                </button>
+            </div>
+        `;
+    }
+
+    card.innerHTML = cardContent;
+
+    if (isAdmin()) {
+        card.querySelector('.btn-edit').addEventListener('click', () => {
+            openModal(category, item);
+        });
+
+        card.querySelector('.btn-danger').addEventListener('click', () => {
+            showDeleteConfirm(async () => {
+                try {
+                    await db.collection(category).doc(item.id).delete();
+                    loadData(category);
+                } catch (error) {
+                    alert('Error deleting: ' + error.message);
+                }
+            });
+        });
+    } else {
+        card.querySelector('.btn-flag').addEventListener('click', () => {
+            const title = `${item.vendor} - $${parseFloat(item.amount || 0).toFixed(2)}`;
+            flagForFollowUp(category, item.id, title);
+        });
+    }
+
+    return card;
+}
+
+// Helper function to check if registration renewal is within 30 days
+function isRegistrationWithin30Days(dateStr) {
+    if (!dateStr) return false;
+    const renewalDate = new Date(dateStr + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysFromNow = new Date(today);
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    return renewalDate >= today && renewalDate <= thirtyDaysFromNow;
+}
+
+// Auto-flag vehicles with registration renewal within 30 days
+async function autoFlagVehicleRenewals() {
+    if (!currentUser) return;
+
+    try {
+        const vehiclesSnapshot = await db.collection('vehicles').get();
+        const followupsSnapshot = await db.collection('followups').get();
+
+        // Get existing flagged vehicle IDs to avoid duplicates
+        const existingFlaggedIds = new Set();
+        followupsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.category === 'vehicles') {
+                existingFlaggedIds.add(data.itemId);
+            }
+        });
+
+        // Check each vehicle for upcoming registration renewal
+        for (const doc of vehiclesSnapshot.docs) {
+            const vehicle = doc.data();
+            if (isRegistrationWithin30Days(vehicle.registrationRenewalDate) && !existingFlaggedIds.has(doc.id)) {
+                // Auto-flag this vehicle
+                await db.collection('followups').add({
+                    category: 'vehicles',
+                    itemId: doc.id,
+                    itemTitle: `${vehicle.year} ${vehicle.makeModel} - Registration Renewal`,
+                    flaggedBy: 'system',
+                    flaggedByEmail: 'Auto-flagged',
+                    flaggedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(`Auto-flagged vehicle: ${vehicle.year} ${vehicle.makeModel}`);
+            }
+        }
+    } catch (error) {
+        console.error('Error auto-flagging vehicle renewals:', error);
+    }
 }
 
 // Helper function to escape HTML
