@@ -437,6 +437,122 @@ body {
     margin: 0;
 }
 
+/* Date Groups (Collapsible) for Activity */
+.date-group {
+    background-color: var(--card-bg);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.date-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    cursor: pointer;
+    background-color: #1f1f1f;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.date-header:hover,
+.date-header:active {
+    background-color: #2a2a2a;
+}
+
+.date-header.collapsed {
+    border-bottom: none;
+}
+
+.date-toggle {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    width: 1rem;
+    text-align: center;
+}
+
+.date-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--primary-color);
+    flex: 1;
+}
+
+.date-count {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.date-content {
+    padding: 0.5rem;
+}
+
+.date-content.collapsed {
+    display: none;
+}
+
+/* Task Items */
+.task-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.task-item:last-child {
+    border-bottom: none;
+}
+
+.task-text {
+    flex: 1;
+    font-size: 0.9375rem;
+    color: var(--text-color);
+    word-break: break-word;
+}
+
+.task-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.btn-icon:hover,
+.btn-icon:active {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.btn-delete-task:hover,
+.btn-delete-task:active {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+}
+
 .empty-text,
 .loading-text,
 .error-text {

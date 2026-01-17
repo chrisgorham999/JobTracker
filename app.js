@@ -29,6 +29,16 @@ const loading = document.getElementById('loading');
 let currentUser = null;
 let deleteCallback = null;
 
+// Admin user IDs - add your admin UIDs here
+const ADMIN_UIDS = [
+    'H9Iu95HshTNjQ86JZlH36hHsBw02'  // Replace with your actual UID from Firebase Console
+];
+
+// Check if current user is admin
+function isAdmin() {
+    return currentUser && ADMIN_UIDS.includes(currentUser.uid);
+}
+
 // Form field configurations for each category
 const formConfigs = {
     permits: {
@@ -71,15 +81,10 @@ const formConfigs = {
         ]
     },
     activity: {
-        title: 'Activity',
+        title: 'Task',
         fields: [
             { name: 'date', label: 'Date', type: 'date', required: true },
-            { name: 'jobSite', label: 'Job Site/Location', type: 'text', required: true },
-            { name: 'description', label: 'Work Description', type: 'textarea', required: true },
-            { name: 'hoursWorked', label: 'Hours Worked', type: 'number', step: '0.5', required: true },
-            { name: 'workers', label: 'Workers/Crew', type: 'text', required: false },
-            { name: 'equipment', label: 'Equipment Used', type: 'text', required: false },
-            { name: 'notes', label: 'Additional Notes', type: 'textarea', required: false }
+            { name: 'task', label: 'Task', type: 'text', required: true }
         ]
     }
 };
@@ -204,6 +209,7 @@ auth.onAuthStateChanged((user) => {
         currentUser = user;
         authContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
+        updateAdminUI();
         loadAllData();
     } else {
         currentUser = null;
@@ -211,6 +217,18 @@ auth.onAuthStateChanged((user) => {
         appContainer.classList.add('hidden');
     }
 });
+
+// Update UI based on admin status
+function updateAdminUI() {
+    const adminElements = document.querySelectorAll('.admin-only');
+    if (isAdmin()) {
+        adminElements.forEach(el => el.classList.remove('hidden'));
+        document.body.classList.add('is-admin');
+    } else {
+        adminElements.forEach(el => el.classList.add('hidden'));
+        document.body.classList.remove('is-admin');
+    }
+}
 
 // Tab Navigation
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -394,9 +412,8 @@ async function loadData(category) {
     listElement.innerHTML = '<p class="loading-text">Loading...</p>';
 
     try {
-        const snapshot = await db.collection(category)
-            .where('userId', '==', currentUser.uid)
-            .get();
+        // All authenticated users can see all data
+        const snapshot = await db.collection(category).get();
 
         const items = [];
         snapshot.forEach(doc => {
@@ -460,13 +477,70 @@ document.getElementById('permit-sort').addEventListener('change', () => {
     loadData('permits');
 });
 
-// Track collapsed state for county groups
+// Track collapsed state for county groups and activity dates
 const collapsedCounties = new Set();
+const collapsedDates = new Set();
+
+// Helper function to create a task line item
+function createTaskItem(item, category) {
+    const taskItem = document.createElement('div');
+    taskItem.className = 'task-item';
+
+    const adminActions = isAdmin() ? `
+        <div class="task-actions">
+            <button class="btn-icon btn-edit-task" data-id="${item.id}" aria-label="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            </button>
+            <button class="btn-icon btn-delete-task" data-id="${item.id}" aria-label="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
+        </div>
+    ` : '';
+
+    taskItem.innerHTML = `
+        <span class="task-text">${escapeHtml(item.task)}</span>
+        ${adminActions}
+    `;
+
+    if (isAdmin()) {
+        // Edit button
+        taskItem.querySelector('.btn-edit-task').addEventListener('click', () => {
+            openModal(category, item);
+        });
+
+        // Delete button
+        taskItem.querySelector('.btn-delete-task').addEventListener('click', () => {
+            showDeleteConfirm(async () => {
+                try {
+                    await db.collection(category).doc(item.id).delete();
+                    loadData(category);
+                } catch (error) {
+                    alert('Error deleting: ' + error.message);
+                }
+            });
+        });
+    }
+
+    return taskItem;
+}
 
 // Helper function to create a permit card
 function createPermitCard(item, category) {
     const card = document.createElement('div');
     card.className = 'item-card';
+
+    const adminActions = isAdmin() ? `
+        <div class="card-actions">
+            <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
+            <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
+        </div>
+    ` : '';
 
     card.innerHTML = `
         <div class="card-header">
@@ -481,28 +555,27 @@ function createPermitCard(item, category) {
             ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
         </div>
         <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
-        <div class="card-actions">
-            <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
-            <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
-        </div>
+        ${adminActions}
     `;
 
-    // Edit button
-    card.querySelector('.btn-edit').addEventListener('click', () => {
-        openModal(category, item);
-    });
-
-    // Delete button
-    card.querySelector('.btn-danger').addEventListener('click', () => {
-        showDeleteConfirm(async () => {
-            try {
-                await db.collection(category).doc(item.id).delete();
-                loadData(category);
-            } catch (error) {
-                alert('Error deleting: ' + error.message);
-            }
+    if (isAdmin()) {
+        // Edit button
+        card.querySelector('.btn-edit').addEventListener('click', () => {
+            openModal(category, item);
         });
-    });
+
+        // Delete button
+        card.querySelector('.btn-danger').addEventListener('click', () => {
+            showDeleteConfirm(async () => {
+                try {
+                    await db.collection(category).doc(item.id).delete();
+                    loadData(category);
+                } catch (error) {
+                    alert('Error deleting: ' + error.message);
+                }
+            });
+        });
+    }
 
     return card;
 }
@@ -582,7 +655,71 @@ function renderList(category, items) {
         return;
     }
 
-    // For non-permits, render normally
+    // For activity, group by date with collapsible sections
+    if (category === 'activity') {
+        // Group items by date
+        const groupedByDate = {};
+        items.forEach(item => {
+            const date = item.date || 'No Date';
+            if (!groupedByDate[date]) {
+                groupedByDate[date] = [];
+            }
+            groupedByDate[date].push(item);
+        });
+
+        // Sort dates in descending order (most recent first)
+        const sortedDates = Object.keys(groupedByDate).sort((a, b) => {
+            return new Date(b) - new Date(a);
+        });
+
+        sortedDates.forEach(date => {
+            const dateItems = groupedByDate[date];
+            const isCollapsed = collapsedDates.has(date);
+
+            // Format the date for display
+            const displayDate = date !== 'No Date'
+                ? new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                : 'No Date';
+
+            // Create date group container
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'date-group';
+
+            // Create collapsible header
+            const header = document.createElement('div');
+            header.className = `date-header ${isCollapsed ? 'collapsed' : ''}`;
+            header.innerHTML = `
+                <span class="date-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                <span class="date-name">${escapeHtml(displayDate)}</span>
+                <span class="date-count">${dateItems.length} task${dateItems.length !== 1 ? 's' : ''}</span>
+            `;
+            header.addEventListener('click', () => {
+                if (collapsedDates.has(date)) {
+                    collapsedDates.delete(date);
+                } else {
+                    collapsedDates.add(date);
+                }
+                renderList(category, items);
+            });
+            groupDiv.appendChild(header);
+
+            // Create content container
+            const content = document.createElement('div');
+            content.className = `date-content ${isCollapsed ? 'collapsed' : ''}`;
+
+            // Add task items for this date
+            dateItems.forEach(item => {
+                const taskItem = createTaskItem(item, category);
+                content.appendChild(taskItem);
+            });
+
+            groupDiv.appendChild(content);
+            listElement.appendChild(groupDiv);
+        });
+        return;
+    }
+
+    // For other categories (vehicles, bills), render normally
     items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'item-card';
@@ -590,7 +727,6 @@ function renderList(category, items) {
         let cardContent = '';
 
         switch (category) {
-
             case 'vehicles':
                 cardContent = `
                     <div class="card-header">
@@ -624,50 +760,37 @@ function renderList(category, items) {
                     <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
                 `;
                 break;
-
-            case 'activity':
-                cardContent = `
-                    <div class="card-header">
-                        <span class="card-title">${escapeHtml(item.date)}</span>
-                        <span class="hours-badge">${escapeHtml(item.hoursWorked)} hrs</span>
-                    </div>
-                    <div class="card-details">
-                        <p><strong>Location:</strong> ${escapeHtml(item.jobSite)}</p>
-                        <p><strong>Work:</strong> ${escapeHtml(item.description)}</p>
-                        ${item.workers ? `<p><strong>Crew:</strong> ${escapeHtml(item.workers)}</p>` : ''}
-                        ${item.equipment ? `<p><strong>Equipment:</strong> ${escapeHtml(item.equipment)}</p>` : ''}
-                        ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
-                    </div>
-                    <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
-                `;
-                break;
         }
 
-        cardContent += `
-            <div class="card-actions">
-                <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
-                <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
-            </div>
-        `;
+        if (isAdmin()) {
+            cardContent += `
+                <div class="card-actions">
+                    <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
+                    <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
+                </div>
+            `;
+        }
 
         card.innerHTML = cardContent;
 
-        // Edit button
-        card.querySelector('.btn-edit').addEventListener('click', () => {
-            openModal(category, item);
-        });
-
-        // Delete button
-        card.querySelector('.btn-danger').addEventListener('click', () => {
-            showDeleteConfirm(async () => {
-                try {
-                    await db.collection(category).doc(item.id).delete();
-                    loadData(category);
-                } catch (error) {
-                    alert('Error deleting: ' + error.message);
-                }
+        if (isAdmin()) {
+            // Edit button
+            card.querySelector('.btn-edit').addEventListener('click', () => {
+                openModal(category, item);
             });
-        });
+
+            // Delete button
+            card.querySelector('.btn-danger').addEventListener('click', () => {
+                showDeleteConfirm(async () => {
+                    try {
+                        await db.collection(category).doc(item.id).delete();
+                        loadData(category);
+                    } catch (error) {
+                        alert('Error deleting: ' + error.message);
+                    }
+                });
+            });
+        }
 
         listElement.appendChild(card);
     });
