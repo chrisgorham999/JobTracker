@@ -507,11 +507,46 @@ async function loadAllData() {
     hideLoading();
 }
 
+// Clean up activity items older than 90 days
+async function cleanupOldActivities() {
+    if (!isAdmin()) return; // Only admins can delete
+
+    try {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const cutoffDateStr = ninetyDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+        const snapshot = await db.collection('activity').get();
+        const batch = db.batch();
+        let deleteCount = 0;
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.date && data.date < cutoffDateStr) {
+                batch.delete(doc.ref);
+                deleteCount++;
+            }
+        });
+
+        if (deleteCount > 0) {
+            await batch.commit();
+            console.log(`Cleaned up ${deleteCount} activity items older than 90 days`);
+        }
+    } catch (error) {
+        console.error('Error cleaning up old activities:', error);
+    }
+}
+
 async function loadData(category) {
     if (!currentUser) return;
 
     const listElement = document.getElementById(`${category}-list`);
     listElement.innerHTML = '<p class="loading-text">Loading...</p>';
+
+    // Auto-cleanup old activity items when loading activity tab
+    if (category === 'activity') {
+        await cleanupOldActivities();
+    }
 
     try {
         // All authenticated users can see all data
