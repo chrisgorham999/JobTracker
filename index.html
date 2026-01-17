@@ -129,9 +129,14 @@
                     <button class="btn btn-add admin-only" id="add-permit-btn">+ Add</button>
                 </div>
                 <div class="sort-controls">
-                    <label for="permit-sort">Sort by County:</label>
-                    <select id="permit-sort">
-                        <option value="all">All Counties</option>
+                    <label for="permit-status-filter">Filter by Status:</label>
+                    <select id="permit-status-filter">
+                        <option value="all">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Denied">Denied</option>
                     </select>
                 </div>
                 <div id="permits-list" class="items-list"></div>
