@@ -164,8 +164,8 @@ const formConfigs = {
             { name: 'model', label: 'Model', type: 'text', required: true },
             { name: 'vin', label: 'VIN', type: 'text', required: true },
             { name: 'licensePlate', label: 'License Plate #', type: 'text', required: true },
-            { name: 'lastRegistrationDate', label: 'Last Registration Date', type: 'date', required: true },
-            { name: 'registrationRenewalDate', label: 'Registration Renewal Date', type: 'date', required: true }
+            { name: 'lastRegistrationDate', label: 'Last Registration', type: 'month', required: false },
+            { name: 'registrationRenewalDate', label: 'Registration Renewal', type: 'month', required: false }
         ]
     },
     bills: {
@@ -708,10 +708,10 @@ async function loadData(category) {
             // Sort vehicles based on user selection
             const sortBy = document.getElementById('vehicle-sort').value;
             if (sortBy === 'renewalDate') {
-                // Sort by registration renewal date (ascending - soonest first)
+                // Sort by registration renewal month (ascending - soonest first)
                 items.sort((a, b) => {
-                    const dateA = a.registrationRenewalDate ? new Date(a.registrationRenewalDate + 'T00:00:00') : new Date('9999-12-31');
-                    const dateB = b.registrationRenewalDate ? new Date(b.registrationRenewalDate + 'T00:00:00') : new Date('9999-12-31');
+                    const dateA = a.registrationRenewalDate ? new Date(a.registrationRenewalDate + '-01T00:00:00') : new Date('9999-12-31');
+                    const dateB = b.registrationRenewalDate ? new Date(b.registrationRenewalDate + '-01T00:00:00') : new Date('9999-12-31');
                     return dateA - dateB;
                 });
             } else if (sortBy === 'year') {
@@ -1135,8 +1135,8 @@ function renderList(category, items) {
                 <p><strong>Vehicle:</strong> ${escapeHtml(item.year)} ${escapeHtml(item.make)} ${escapeHtml(item.model)}</p>
                 <p><strong>VIN:</strong> ${escapeHtml(item.vin)}</p>
                 <p><strong>License Plate:</strong> ${escapeHtml(item.licensePlate)}</p>
-                <p><strong>Last Registration:</strong> ${escapeHtml(item.lastRegistrationDate)}</p>
-                <p><strong>Registration Renewal:</strong> ${escapeHtml(item.registrationRenewalDate)}</p>
+                <p><strong>Last Registration:</strong> ${formatMonth(item.lastRegistrationDate)}</p>
+                <p><strong>Registration Renewal:</strong> ${formatMonth(item.registrationRenewalDate)}</p>
             </div>
             <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
         `;
@@ -1406,15 +1406,26 @@ function createInspectionCard(item, category) {
     return card;
 }
 
+// Helper function to format month (YYYY-MM) to readable format
+function formatMonth(monthStr) {
+    if (!monthStr) return 'N/A';
+    const [year, month] = monthStr.split('-');
+    const date = new Date(year, month - 1);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
 // Helper function to check if registration renewal is within 30 days
-function isRegistrationWithin30Days(dateStr) {
-    if (!dateStr) return false;
-    const renewalDate = new Date(dateStr + 'T00:00:00');
+function isRegistrationWithin30Days(monthStr) {
+    if (!monthStr) return false;
+    // Month format is YYYY-MM, use the first of that month
+    const renewalDate = new Date(monthStr + '-01T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const thirtyDaysFromNow = new Date(today);
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    return renewalDate >= today && renewalDate <= thirtyDaysFromNow;
+    // Check if the renewal month starts within the next 30 days or has already started this month
+    const endOfRenewalMonth = new Date(renewalDate.getFullYear(), renewalDate.getMonth() + 1, 0);
+    return endOfRenewalMonth >= today && renewalDate <= thirtyDaysFromNow;
 }
 
 // Auto-flag vehicles with registration renewal within 30 days
