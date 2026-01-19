@@ -169,10 +169,11 @@ const formConfigs = {
         ]
     },
     bills: {
-        title: 'Bill',
+        title: 'Bill/Expense',
         fields: [
+            { name: 'entryType', label: 'Type', type: 'select', options: ['Bill', 'Expense'], required: true },
             { name: 'vendor', label: 'Vendor', type: 'text', required: true },
-            { name: 'invoiceNumber', label: 'Invoice #', type: 'text', required: true },
+            { name: 'invoiceNumber', label: 'Invoice #', type: 'text', required: false },
             { name: 'amount', label: 'Amount ($)', type: 'number', step: '0.01', required: true },
             { name: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['Cash', 'Check', 'Credit Card'], required: true },
             { name: 'checkNumber', label: 'Check Number', type: 'text', required: false, showIf: { field: 'paymentMethod', value: 'Check' } },
@@ -1032,10 +1033,11 @@ function renderList(category, items) {
         return;
     }
 
-    // For bills, group by Unpaid/Paid status with collapsible sections
+    // For bills, group by Unpaid Bills, Paid Bills, and Paid Expenses with collapsible sections
     if (category === 'bills') {
-        const unpaidBills = items.filter(item => item.status === 'Unpaid');
-        const paidBills = items.filter(item => item.status === 'Paid');
+        const unpaidBills = items.filter(item => item.status === 'Unpaid' && item.entryType !== 'Expense');
+        const paidBills = items.filter(item => item.status === 'Paid' && item.entryType !== 'Expense');
+        const paidExpenses = items.filter(item => item.entryType === 'Expense' && item.status === 'Paid');
 
         // Render Unpaid Bills section
         const unpaidCollapsed = collapsedBillStatus.has('Unpaid');
@@ -1104,6 +1106,40 @@ function renderList(category, items) {
         }
         paidGroup.appendChild(paidContent);
         listElement.appendChild(paidGroup);
+
+        // Render Paid Expenses section
+        const expensesCollapsed = collapsedBillStatus.has('Expenses');
+        const expensesGroup = document.createElement('div');
+        expensesGroup.className = 'bill-status-group';
+
+        const expensesHeader = document.createElement('div');
+        expensesHeader.className = `bill-status-header ${expensesCollapsed ? 'collapsed' : ''}`;
+        expensesHeader.innerHTML = `
+            <span class="status-toggle">${expensesCollapsed ? '▶' : '▼'}</span>
+            <span class="status-name">Paid Expenses</span>
+            <span class="status-count">(${paidExpenses.length})</span>
+        `;
+        expensesHeader.addEventListener('click', () => {
+            if (collapsedBillStatus.has('Expenses')) {
+                collapsedBillStatus.delete('Expenses');
+            } else {
+                collapsedBillStatus.add('Expenses');
+            }
+            renderList(category, items);
+        });
+        expensesGroup.appendChild(expensesHeader);
+
+        const expensesContent = document.createElement('div');
+        expensesContent.className = `bill-status-content ${expensesCollapsed ? 'collapsed' : ''}`;
+        if (paidExpenses.length === 0) {
+            expensesContent.innerHTML = '<p class="empty-text">No paid expenses.</p>';
+        } else {
+            paidExpenses.forEach(item => {
+                expensesContent.appendChild(createBillCard(item, category));
+            });
+        }
+        expensesGroup.appendChild(expensesContent);
+        listElement.appendChild(expensesGroup);
 
         return;
     }
