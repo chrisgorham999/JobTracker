@@ -177,6 +177,7 @@ const formConfigs = {
             { name: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['Cash', 'Check', 'Credit Card'], required: true },
             { name: 'checkNumber', label: 'Check Number', type: 'text', required: false, showIf: { field: 'paymentMethod', value: 'Check' } },
             { name: 'status', label: 'Status', type: 'select', options: ['Unpaid', 'Paid'], required: true },
+            { name: 'paidOn', label: 'Paid On', type: 'date', required: false, showIf: { field: 'status', value: 'Paid' } },
             { name: 'notes', label: 'Notes', type: 'textarea', required: false }
         ]
     },
@@ -204,6 +205,13 @@ const formConfigs = {
             { name: 'countyTown', label: 'County/Town', type: 'text', required: true },
             { name: 'address', label: 'Address', type: 'text', required: true },
             { name: 'job', label: 'Job', type: 'text', required: true },
+            { name: 'notes', label: 'Notes', type: 'textarea', required: false }
+        ]
+    },
+    todos: {
+        title: 'Todo',
+        fields: [
+            { name: 'task', label: 'Task', type: 'text', required: true },
             { name: 'notes', label: 'Notes', type: 'textarea', required: false }
         ]
     }
@@ -520,6 +528,7 @@ document.getElementById('add-vehicle-btn').addEventListener('click', () => openM
 document.getElementById('add-bill-btn').addEventListener('click', () => openModal('bills'));
 document.getElementById('add-deposit-btn').addEventListener('click', () => openModal('deposits'));
 document.getElementById('add-inspection-btn').addEventListener('click', () => openModal('inspections'));
+document.getElementById('add-todo-btn').addEventListener('click', () => openModal('todos'));
 document.getElementById('add-activity-btn').addEventListener('click', () => openModal('activity'));
 
 // Helper function to add timeout to promises
@@ -600,6 +609,7 @@ async function loadAllData() {
         loadData('bills'),
         loadData('deposits'),
         loadData('inspections'),
+        loadData('todos'),
         loadData('activity')
     ]);
     hideLoading();
@@ -874,7 +884,8 @@ function createPermitCard(item, category) {
     } else {
         // Flag button for non-admin users
         card.querySelector('.btn-flag').addEventListener('click', () => {
-            const title = `${item.permitNumber} - ${item.customerName}`;
+            let title = `${item.permitNumber} - ${item.customerName}`;
+            if (item.notes) title += ` | Notes: ${item.notes}`;
             flagForFollowUp(category, item.id, title);
         });
     }
@@ -1115,6 +1126,15 @@ function renderList(category, items) {
         return;
     }
 
+    // For todos, render with todo cards
+    if (category === 'todos') {
+        items.forEach(item => {
+            const card = createTodoCard(item, category);
+            listElement.appendChild(card);
+        });
+        return;
+    }
+
     // For vehicles, render normally
     items.forEach(item => {
         const card = document.createElement('div');
@@ -1203,6 +1223,10 @@ function createBillCard(item, category) {
         ? `<p><strong>Check #:</strong> ${escapeHtml(item.checkNumber)}</p>`
         : '';
 
+    const paidOnLine = item.status === 'Paid' && item.paidOn
+        ? `<p><strong>Paid On:</strong> ${new Date(item.paidOn + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>`
+        : '';
+
     let cardContent = `
         <div class="card-header">
             <span class="card-title">${escapeHtml(item.vendor)}</span>
@@ -1213,6 +1237,7 @@ function createBillCard(item, category) {
             <p><strong>Amount:</strong> $${parseFloat(item.amount || 0).toFixed(2)}</p>
             <p><strong>Payment Method:</strong> ${escapeHtml(item.paymentMethod)}</p>
             ${checkNumberLine}
+            ${paidOnLine}
             ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
         </div>
         <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
@@ -1258,7 +1283,8 @@ function createBillCard(item, category) {
         });
     } else {
         card.querySelector('.btn-flag').addEventListener('click', () => {
-            const title = `${item.vendor} - $${parseFloat(item.amount || 0).toFixed(2)}`;
+            let title = `${item.vendor} - $${parseFloat(item.amount || 0).toFixed(2)}`;
+            if (item.notes) title += ` | Notes: ${item.notes}`;
             flagForFollowUp(category, item.id, title);
         });
     }
@@ -1328,7 +1354,8 @@ function createDepositCard(item, category) {
         });
     } else {
         card.querySelector('.btn-flag').addEventListener('click', () => {
-            const title = `${item.customerName} - $${parseFloat(item.amount || 0).toFixed(2)}`;
+            let title = `${item.customerName} - $${parseFloat(item.amount || 0).toFixed(2)}`;
+            if (item.notes) title += ` | Notes: ${item.notes}`;
             flagForFollowUp(category, item.id, title);
         });
     }
@@ -1398,7 +1425,71 @@ function createInspectionCard(item, category) {
         });
     } else {
         card.querySelector('.btn-flag').addEventListener('click', () => {
-            const title = `${item.job} - ${item.address}`;
+            let title = `${item.job} - ${item.address}`;
+            if (item.notes) title += ` | Notes: ${item.notes}`;
+            flagForFollowUp(category, item.id, title);
+        });
+    }
+
+    return card;
+}
+
+// Helper function to create a todo card
+function createTodoCard(item, category) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+
+    let cardContent = `
+        <div class="card-header">
+            <span class="card-title">${escapeHtml(item.task)}</span>
+        </div>
+        <div class="card-details">
+            ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
+        </div>
+        <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
+    `;
+
+    if (isAdmin()) {
+        cardContent += `
+            <div class="card-actions">
+                <button class="btn btn-small btn-edit" data-id="${item.id}">Edit</button>
+                <button class="btn btn-small btn-danger" data-id="${item.id}">Delete</button>
+            </div>
+        `;
+    } else {
+        cardContent += `
+            <div class="card-actions">
+                <button class="btn btn-small btn-flag" data-id="${item.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" y1="22" x2="4" y2="15"></line>
+                    </svg>
+                    Flag for Follow Up
+                </button>
+            </div>
+        `;
+    }
+
+    card.innerHTML = cardContent;
+
+    if (isAdmin()) {
+        card.querySelector('.btn-edit').addEventListener('click', () => {
+            openModal(category, item);
+        });
+
+        card.querySelector('.btn-danger').addEventListener('click', () => {
+            showDeleteConfirm(async () => {
+                try {
+                    await db.collection(category).doc(item.id).delete();
+                    loadData(category);
+                } catch (error) {
+                    alert('Error deleting: ' + error.message);
+                }
+            });
+        });
+    } else {
+        card.querySelector('.btn-flag').addEventListener('click', () => {
+            const title = item.notes ? `${item.task} - ${item.notes}` : item.task;
             flagForFollowUp(category, item.id, title);
         });
     }
