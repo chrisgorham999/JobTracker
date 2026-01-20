@@ -13,6 +13,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 // DOM Elements
 const authContainer = document.getElementById('auth-container');
@@ -149,9 +150,11 @@ const formConfigs = {
             { name: 'customerName', label: 'Customer Name', type: 'text', required: true },
             { name: 'customerPhone', label: 'Customer Phone', type: 'tel', required: true },
             { name: 'county', label: 'County', type: 'select', options: ['Wicomico', 'Worcester', 'Somerset', 'Dorchester', 'Talbot', 'Caroline', "Queen Anne's", 'Kent', 'Cecil', 'Harford', 'Sussex DE', 'Kent DE', 'New Castle DE'], required: true },
+            { name: 'city', label: 'City', type: 'text', required: false },
             { name: 'address', label: 'Address', type: 'text', required: true },
             { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Approved', 'In Progress', 'Completed', 'Denied'], required: true },
             { name: 'dateSubmitted', label: 'Date Submitted', type: 'date', required: true },
+            { name: 'image', label: 'Photo', type: 'file', accept: 'image/*', required: false },
             { name: 'notes', label: 'Notes', type: 'textarea', required: false }
         ]
     },
@@ -455,6 +458,27 @@ function openModal(category, editData = null) {
                 option.textContent = opt;
                 input.appendChild(option);
             });
+        } else if (field.type === 'file') {
+            input = document.createElement('input');
+            input.type = 'file';
+            if (field.accept) input.accept = field.accept;
+            // Show existing image if editing
+            if (editData && editData[field.name]) {
+                const preview = document.createElement('div');
+                preview.className = 'image-preview';
+                preview.innerHTML = `
+                    <img src="${editData[field.name]}" alt="Current photo" style="max-width: 100%; max-height: 150px; margin-bottom: 0.5rem; border-radius: 4px;">
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Select a new file to replace</p>
+                `;
+                div.appendChild(label);
+                div.appendChild(preview);
+                div.appendChild(input);
+                input.id = `field-${field.name}`;
+                input.name = field.name;
+                input.required = false;
+                modalFields.appendChild(div);
+                return; // Skip the normal append below
+            }
         } else {
             input = document.createElement('input');
             input.type = field.type;
@@ -465,7 +489,7 @@ function openModal(category, editData = null) {
         input.name = field.name;
         input.required = field.showIf ? false : field.required; // Conditional fields not required initially
 
-        if (editData && editData[field.name]) {
+        if (editData && editData[field.name] && field.type !== 'file') {
             input.value = editData[field.name];
         }
 
@@ -555,9 +579,21 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
+    // Collect file inputs separately
+    let fileToUpload = null;
+    let fileFieldName = null;
+
     config.fields.forEach(field => {
         const input = document.getElementById(`field-${field.name}`);
-        data[field.name] = input.value;
+        if (field.type === 'file') {
+            if (input.files && input.files[0]) {
+                fileToUpload = input.files[0];
+                fileFieldName = field.name;
+            }
+            // Don't overwrite existing image URL if no new file selected
+        } else {
+            data[field.name] = input.value;
+        }
     });
 
     // Close modal first for better UX
@@ -565,6 +601,16 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
     showLoading();
 
     try {
+        // Upload file if present
+        if (fileToUpload && fileFieldName) {
+            const timestamp = Date.now();
+            const fileName = `${category}/${timestamp}_${fileToUpload.name}`;
+            const storageRef = storage.ref(fileName);
+            await storageRef.put(fileToUpload);
+            const downloadURL = await storageRef.getDownloadURL();
+            data[fileFieldName] = downloadURL;
+        }
+
         if (editId) {
             data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
             delete data.createdAt;
@@ -849,6 +895,14 @@ function createPermitCard(item, category) {
         </div>
     `;
 
+    const imageHtml = item.image ? `
+        <div class="permit-image">
+            <a href="${item.image}" target="_blank" rel="noopener">
+                <img src="${item.image}" alt="Permit photo" class="permit-photo">
+            </a>
+        </div>
+    ` : '';
+
     card.innerHTML = `
         <div class="card-header">
             <span class="card-title">${escapeHtml(item.permitNumber)}</span>
@@ -857,9 +911,11 @@ function createPermitCard(item, category) {
         <div class="card-details">
             <p><strong>Customer:</strong> ${escapeHtml(item.customerName)}</p>
             <p><strong>Phone:</strong> <a href="tel:${escapeHtml(item.customerPhone)}">${escapeHtml(item.customerPhone)}</a></p>
+            ${item.city ? `<p><strong>City:</strong> ${escapeHtml(item.city)}</p>` : ''}
             <p><strong>Address:</strong> ${escapeHtml(item.address)}</p>
             <p><strong>Submitted:</strong> ${escapeHtml(item.dateSubmitted)}</p>
             ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
+            ${imageHtml}
         </div>
         <div class="card-updated">Last updated: ${formatDate(item.updatedAt)}</div>
         ${adminActions}
