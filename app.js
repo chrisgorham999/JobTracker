@@ -146,11 +146,12 @@ const formConfigs = {
     permits: {
         title: 'Permit',
         fields: [
+            { name: 'permitType', label: 'Permit Type', type: 'select', options: ['County Permit', 'City Permit'], required: true },
             { name: 'permitNumber', label: 'Permit Number', type: 'text', required: true },
             { name: 'customerName', label: 'Customer Name', type: 'text', required: true },
             { name: 'customerPhone', label: 'Customer Phone', type: 'tel', required: true },
-            { name: 'county', label: 'County', type: 'select', options: ['Wicomico', 'Worcester', 'Somerset', 'Dorchester', 'Talbot', 'Caroline', "Queen Anne's", 'Kent', 'Cecil', 'Harford', 'Sussex DE', 'Kent DE', 'New Castle DE', 'Accomack VA', 'Northampton VA'], required: true },
-            { name: 'city', label: 'City', type: 'text', required: false },
+            { name: 'county', label: 'County', type: 'select', options: ['Wicomico', 'Worcester', 'Somerset', 'Dorchester', 'Talbot', 'Caroline', "Queen Anne's", 'Kent', 'Cecil', 'Harford', 'Sussex DE', 'Kent DE', 'New Castle DE', 'Accomack VA', 'Northampton VA'], required: true, disableIf: { field: 'permitType', value: 'City Permit' } },
+            { name: 'city', label: 'City', type: 'text', required: false, requiredIf: { field: 'permitType', value: 'City Permit' } },
             { name: 'address', label: 'Address', type: 'text', required: true },
             { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Approved', 'In Progress', 'Completed', 'Denied'], required: true },
             { name: 'dateSubmitted', label: 'Date Submitted', type: 'date', required: true },
@@ -428,6 +429,7 @@ function openModal(category, editData = null) {
     modalFields.innerHTML = '';
 
     const conditionalFields = [];
+    const disableableFields = [];
 
     config.fields.forEach(field => {
         const div = document.createElement('div');
@@ -439,6 +441,19 @@ function openModal(category, editData = null) {
             div.dataset.showIfValue = field.showIf.value;
             div.classList.add('conditional-field', 'hidden');
             conditionalFields.push(div);
+        }
+
+        // Handle conditional disable
+        if (field.disableIf) {
+            div.dataset.disableIf = field.disableIf.field;
+            div.dataset.disableIfValue = field.disableIf.value;
+            disableableFields.push({ div, fieldName: field.name });
+        }
+
+        // Handle conditional required
+        if (field.requiredIf) {
+            div.dataset.requiredIf = field.requiredIf.field;
+            div.dataset.requiredIfValue = field.requiredIf.value;
         }
 
         const label = document.createElement('label');
@@ -510,11 +525,51 @@ function openModal(category, editData = null) {
                 if (input) input.value = '';
             }
         });
+
+        // Handle disableable fields
+        disableableFields.forEach(({ div, fieldName }) => {
+            const triggerField = document.getElementById(`field-${div.dataset.disableIf}`);
+            const input = document.getElementById(`field-${fieldName}`);
+            if (triggerField && input) {
+                if (triggerField.value === div.dataset.disableIfValue) {
+                    input.disabled = true;
+                    input.value = '';
+                    input.required = false;
+                } else {
+                    input.disabled = false;
+                    input.required = true;
+                }
+            }
+        });
+
+        // Handle conditional required fields
+        const allFormGroups = modalFields.querySelectorAll('.form-group');
+        allFormGroups.forEach(div => {
+            if (div.dataset.requiredIf) {
+                const triggerField = document.getElementById(`field-${div.dataset.requiredIf}`);
+                const input = div.querySelector('input, select, textarea');
+                if (triggerField && input) {
+                    if (triggerField.value === div.dataset.requiredIfValue) {
+                        input.required = true;
+                    } else {
+                        input.required = false;
+                    }
+                }
+            }
+        });
     }
 
     // Add change listeners to trigger fields
     conditionalFields.forEach(div => {
         const triggerField = document.getElementById(`field-${div.dataset.showIf}`);
+        if (triggerField) {
+            triggerField.addEventListener('change', updateConditionalFields);
+        }
+    });
+
+    // Add change listeners for disableable fields
+    disableableFields.forEach(({ div }) => {
+        const triggerField = document.getElementById(`field-${div.dataset.disableIf}`);
         if (triggerField) {
             triggerField.addEventListener('change', updateConditionalFields);
         }
@@ -903,6 +958,12 @@ function createPermitCard(item, category) {
         </div>
     ` : '';
 
+    // Determine location display based on permit type
+    const isCityPermit = item.permitType === 'City Permit';
+    const locationHtml = isCityPermit
+        ? `<p><strong>City:</strong> ${escapeHtml(item.city || 'N/A')}</p>`
+        : `<p><strong>County:</strong> ${escapeHtml(item.county || 'N/A')}</p>${item.city ? `<p><strong>City:</strong> ${escapeHtml(item.city)}</p>` : ''}`;
+
     card.innerHTML = `
         <div class="card-header">
             <span class="card-title">${escapeHtml(item.permitNumber)}</span>
@@ -911,7 +972,7 @@ function createPermitCard(item, category) {
         <div class="card-details">
             <p><strong>Customer:</strong> ${escapeHtml(item.customerName)}</p>
             <p><strong>Phone:</strong> <a href="tel:${escapeHtml(item.customerPhone)}">${escapeHtml(item.customerPhone)}</a></p>
-            ${item.city ? `<p><strong>City:</strong> ${escapeHtml(item.city)}</p>` : ''}
+            ${locationHtml}
             <p><strong>Address:</strong> ${escapeHtml(item.address)}</p>
             <p><strong>Submitted:</strong> ${escapeHtml(item.dateSubmitted)}</p>
             ${item.notes ? `<p><strong>Notes:</strong> ${escapeHtml(item.notes)}</p>` : ''}
@@ -968,11 +1029,15 @@ function renderList(category, items) {
 
     listElement.innerHTML = '';
 
-    // For permits, group by county
+    // For permits, group by county (for County Permits) or city (for City Permits)
     if (category === 'permits') {
-        // Group items by county
+        // Separate permits by type
+        const countyPermits = items.filter(item => item.permitType !== 'City Permit');
+        const cityPermits = items.filter(item => item.permitType === 'City Permit');
+
+        // Group county permits by county
         const groupedByCounty = {};
-        items.forEach(item => {
+        countyPermits.forEach(item => {
             const county = item.county || 'Unknown';
             if (!groupedByCounty[county]) {
                 groupedByCounty[county] = [];
@@ -980,7 +1045,17 @@ function renderList(category, items) {
             groupedByCounty[county].push(item);
         });
 
-        // Sort counties alphabetically
+        // Group city permits by city
+        const groupedByCity = {};
+        cityPermits.forEach(item => {
+            const city = item.city || 'Unknown City';
+            if (!groupedByCity[city]) {
+                groupedByCity[city] = [];
+            }
+            groupedByCity[city].push(item);
+        });
+
+        // Sort counties alphabetically and render
         const sortedCounties = Object.keys(groupedByCounty).sort();
 
         sortedCounties.forEach(county => {
@@ -1015,6 +1090,50 @@ function renderList(category, items) {
 
             // Add permit cards for this county
             countyItems.forEach(item => {
+                const card = createPermitCard(item, category);
+                content.appendChild(card);
+            });
+
+            groupDiv.appendChild(content);
+            listElement.appendChild(groupDiv);
+        });
+
+        // Sort cities alphabetically and render
+        const sortedCities = Object.keys(groupedByCity).sort();
+
+        sortedCities.forEach(city => {
+            const cityItems = groupedByCity[city];
+            const cityKey = `city-${city}`;
+            const isCollapsed = collapsedCounties.has(cityKey);
+
+            // Create city group container
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'county-group city-permit-group';
+
+            // Create collapsible header
+            const header = document.createElement('div');
+            header.className = `county-header ${isCollapsed ? 'collapsed' : ''}`;
+            header.innerHTML = `
+                <span class="county-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                <span class="county-name">${escapeHtml(city)} <small>(City)</small></span>
+                <span class="county-count">(${cityItems.length})</span>
+            `;
+            header.addEventListener('click', () => {
+                if (collapsedCounties.has(cityKey)) {
+                    collapsedCounties.delete(cityKey);
+                } else {
+                    collapsedCounties.add(cityKey);
+                }
+                renderList(category, items);
+            });
+            groupDiv.appendChild(header);
+
+            // Create content container
+            const content = document.createElement('div');
+            content.className = `county-content ${isCollapsed ? 'collapsed' : ''}`;
+
+            // Add permit cards for this city
+            cityItems.forEach(item => {
                 const card = createPermitCard(item, category);
                 content.appendChild(card);
             });
