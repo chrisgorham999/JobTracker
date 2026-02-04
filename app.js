@@ -711,6 +711,22 @@ function openModal(category, editData = null) {
         input.name = field.name;
         input.required = field.showIf ? false : field.required; // Conditional fields not required initially
 
+        // Some mobile browsers can end up with an invalid/ancient year (e.g. year 0004) in date inputs.
+        // Normalize any selected date to the current year if the year is < 1900.
+        if (field.type === 'date') {
+            const normalizeDateYear = () => {
+                const v = input.value;
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                const y = parseInt(v.slice(0, 4), 10);
+                if (y && y < 1900) {
+                    const thisYear = new Date().getFullYear();
+                    input.value = `${String(thisYear).padStart(4, '0')}${v.slice(4)}`;
+                }
+            };
+            input.addEventListener('change', normalizeDateYear);
+            input.addEventListener('blur', normalizeDateYear);
+        }
+
         if (editData && editData[field.name] && field.type !== 'file') {
             const rawVal = editData[field.name];
 
@@ -728,20 +744,45 @@ function openModal(category, editData = null) {
 
                     const s = val.trim();
                     // Already in correct format
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                        const y = parseInt(s.slice(0, 4), 10);
+                        if (y && y < 1900) {
+                            const thisYear = new Date().getFullYear();
+                            return `${String(thisYear).padStart(4, '0')}${s.slice(4)}`;
+                        }
+                        return s;
+                    }
                     // ISO datetime
-                    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
+                    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+                        const iso = s.slice(0, 10);
+                        const y = parseInt(iso.slice(0, 4), 10);
+                        if (y && y < 1900) {
+                            const thisYear = new Date().getFullYear();
+                            return `${String(thisYear).padStart(4, '0')}${iso.slice(4)}`;
+                        }
+                        return iso;
+                    }
                     // Common US format MM/DD/YYYY
                     const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
                     if (m) {
                         const mm = m[1].padStart(2, '0');
                         const dd = m[2].padStart(2, '0');
-                        const yyyy = m[3];
+                        let yyyy = m[3];
+                        const y = parseInt(yyyy, 10);
+                        if (y && y < 1900) yyyy = String(new Date().getFullYear());
                         return `${yyyy}-${mm}-${dd}`;
                     }
                     // Last resort: let Date parse it
                     const d = new Date(s);
-                    if (!isNaN(d)) return d.toISOString().slice(0, 10);
+                    if (!isNaN(d)) {
+                        const iso = d.toISOString().slice(0, 10);
+                        const y = parseInt(iso.slice(0, 4), 10);
+                        if (y && y < 1900) {
+                            const thisYear = new Date().getFullYear();
+                            return `${String(thisYear).padStart(4, '0')}${iso.slice(4)}`;
+                        }
+                        return iso;
+                    }
                     return '';
                 };
 
@@ -890,6 +931,17 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
                 fileFieldName = field.name;
             }
             // Don't overwrite existing image URL if no new file selected
+        } else if (field.type === 'date') {
+            let v = input.value;
+            // Guard against ancient years like 0004-02-04
+            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                const y = parseInt(v.slice(0, 4), 10);
+                if (y && y < 1900) {
+                    const thisYear = new Date().getFullYear();
+                    v = `${String(thisYear).padStart(4, '0')}${v.slice(4)}`;
+                }
+            }
+            data[field.name] = v;
         } else {
             data[field.name] = input.value;
         }
