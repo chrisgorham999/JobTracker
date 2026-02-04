@@ -459,7 +459,7 @@ document.addEventListener('keydown', (e) => {
 const RECAPTCHA_SITE_KEY = '6LcBrU4sAAAAAPvJzPw5NoZTSoO04v2GGI2xBF6M';
 
 // Legal content (shown on login screen)
-const LEGAL_CONTACT_EMAIL = 'redonx99@outlook.com';
+const LEGAL_CONTACT_EMAIL = 'redonx99@gmail.com';
 
 function openLegalModal(kind) {
     if (!legalModal || !legalTitle || !legalBody) return;
