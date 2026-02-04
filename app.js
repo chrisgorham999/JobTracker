@@ -960,6 +960,8 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
             await storageRef.put(fileToUpload);
             const downloadURL = await storageRef.getDownloadURL();
             data[fileFieldName] = downloadURL;
+            // Store storage path for reliable server-side deletion on record delete
+            data[`${fileFieldName}Path`] = fileName;
         }
 
         if (editId) {
