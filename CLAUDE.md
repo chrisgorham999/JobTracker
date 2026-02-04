@@ -2,7 +2,7 @@
 
 A mobile-first web application for tracking permits, vehicles, bills, deposits, inspections, business licenses, and daily tasks.
 
-**Live URL**: https://chrisgorham999.github.io/JobTracker/
+**Live URL**: https://99redder.github.io/JobTracker/
 
 ## Tech Stack
 
@@ -92,7 +92,7 @@ A mobile-first web application for tracking permits, vehicles, bills, deposits, 
 ## Security
 
 - API key should be restricted in Google Cloud Console:
-  - HTTP referrers: `chrisgorham999.github.io/*` and `localhost`
+  - HTTP referrers: `99redder.github.io/*` and `localhost`
   - API restrictions: Identity Toolkit API, Firebase installations API, Token Service API
 
 ## Deployment

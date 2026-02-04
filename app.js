@@ -2092,7 +2092,7 @@ document.getElementById('invite-btn').addEventListener('click', async () => {
     const shareData = {
         title: 'Job Tracker',
         text: 'Check out Job Tracker - a simple app to track permits, vehicles, bills, and daily activity!',
-        url: 'https://chrisgorham999.github.io/JobTracker'
+        url: 'https://99redder.github.io/JobTracker'
     };
 
     try {
