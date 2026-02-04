@@ -99,6 +99,21 @@ A mobile-first web application for tracking permits, vehicles, bills, deposits, 
 
 Push to `main` branch - GitHub Pages auto-deploys from there.
 
+### Firebase Functions (Storage cleanup)
+
+When a Firestore document is deleted, a Cloud Function best-effort deletes the associated Firebase Storage object.
+
+- Collections covered: `permits`, `licenses`
+- Image fields:
+  - `image` (download URL)
+  - `imagePath` (storage path; preferred for reliable deletes)
+
+Deploy (from repo root):
+
+```bash
+firebase deploy --only functions
+```
+
 ## Firebase Console
 
 - Project ID: jobtracker-582b9
